@@ -7,10 +7,11 @@
 
 
 typedef enum {
-  Empty, 
+  Empty = 0,    // From 1 to 8 field contain mines count   
+  Checked = 9,
   Mine,
   Flag, 
-  Mflag,
+  MFlag,
   Blast,
   False
 } CellType;

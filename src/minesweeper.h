@@ -28,6 +28,9 @@ void startMinesweeper();
 static void newGame(int width, int height, int mines);
 static void drawField(const Field *FIELD);
 
+static void countMines(Field *field, int x, int y);
+
+
 
 static void loadResources();
 

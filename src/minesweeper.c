@@ -3,11 +3,13 @@
 
 
 static Sound lose_sound, win_sound, tick_sound;
-static Texture2D cell_up, flag_cell,  mine_cell, blast_cell, false_mine; 
-static Texture2D cells_neibers[MAX_NEIBERS + 1];
+static Texture2D cell_up, cell_down, flag_cell,  mine_cell, blast_cell, false_mine; 
+static Texture2D cells_neibers[MAX_NEIBERS];
 
 static Texture2D faces[FACES_COUNT];
 static SmileType cur_face = Default;
+
+
 
 
 void startMinesweeper() {
@@ -29,7 +31,10 @@ static void newGame(int width, int height, int mines) {
     printf("ERROR: Cant allocate field\n");
     exit(1);
   } 
-  
+
+ 
+  field.field[0] = Empty;
+  countMines(&field, 0, 0);
   while (!WindowShouldClose()) {
     BeginDrawing();
     drawField(&field);
@@ -47,16 +52,18 @@ static void drawField(const Field *FIELD) {
   int index = 0;
   for (int i = 0; i < FIELD->height; i++, pos.x = 0, pos.y += CELL_SIZE) {
     for (int j = 0; j < FIELD->width; j++, index++, pos.x += CELL_SIZE) {
-      //printf("Field: %d\n", FIELD->field[index]);
       switch (FIELD->field[index]) {
         case Empty:
           texture = &cell_up;
+          break;
+        case Checked:
+          texture = &cell_down;
           break;
         case Mine:
           texture = &mine_cell;
           break;
         case Flag:
-        case Mflag:
+        case MFlag:
           texture = &flag_cell;
           break;
         case Blast:
@@ -66,11 +73,11 @@ static void drawField(const Field *FIELD) {
           texture = &false_mine;
           break;
         default:
-          if (FIELD->field[index] >= 0 && FIELD->field[index] < MAX_NEIBERS) {
-            texture = &cells_neibers[FIELD->field[index]];
+          if (FIELD->field[index] >= 1 && FIELD->field[index] <= MAX_NEIBERS) {
+            texture = &cells_neibers[FIELD->field[index]-1];
           }
           else {
-            texture = &cells_neibers[MAX_NEIBERS];
+            texture = &cell_down;
           }
           break;
       }
@@ -81,6 +88,44 @@ static void drawField(const Field *FIELD) {
 }
 
 
+static void countMines(Field *field, int x, int y) {
+  int mines = 0, neibers_count = 0;
+  int neibersx[MAX_NEIBERS];
+  int neibersy[MAX_NEIBERS];
+
+
+  for (int i = -1; i < 2; i++) {
+    int new_y = y + i;
+    if (new_y < 0 || new_y >= field->height)
+      continue;
+
+    for (int j = -1; j < 2; j++) {
+      int new_x = x + j;
+      if (new_x < 0 || new_x >= field->width)
+        continue;
+
+      int index = (new_y * field->width) + new_x;
+      if (field->field[index] == Mine || field->field[index] == MFlag) {
+        mines++;
+      }
+      else if (mines == 0 && field->field[index] == Empty) {
+        neibersx[neibers_count] = new_x;
+        neibersy[neibers_count++] = new_y;
+      }
+    }
+  }
+
+  int cur = (y * field->width) + x;
+  if (mines > 0) {
+    field->field[cur] = mines;
+    return;
+  }
+
+  field->field[cur] = Checked;
+  for (int i = 0; i < neibers_count; i++)
+    countMines(field, neibersx[i], neibersy[i]);
+}
+
 
 static void loadResources() {
     lose_sound = loadSound("./assets/sounds/lose.wav");
@@ -90,6 +135,7 @@ static void loadResources() {
 
 
     cell_up   =  loadTexture("./assets/textures/cells/cellup.png", CELL_SIZE, CELL_SIZE);
+    cell_down =  loadTexture("./assets/textures/cells/celldown.png", CELL_SIZE, CELL_SIZE);
     flag_cell =  loadTexture("./assets/textures/cells/cellflag.png", CELL_SIZE, CELL_SIZE);
     mine_cell =  loadTexture("./assets/textures/cells/cellmine.png", CELL_SIZE, CELL_SIZE);
     blast_cell = loadTexture("./assets/textures/cells/blast.png", CELL_SIZE, CELL_SIZE);
@@ -104,7 +150,6 @@ static void loadResources() {
         cells_neibers[i-1] = loadTexture(cell_path, CELL_SIZE, CELL_SIZE);
     }
 
-    cells_neibers[MAX_NEIBERS] = loadTexture("assets/textures/cells/celldown.png", CELL_SIZE, CELL_SIZE);
 
 
     faces[Default] = loadTexture("assets/textures/faces/smileface.png", 50, 50);
