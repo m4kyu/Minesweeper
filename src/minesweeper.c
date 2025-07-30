@@ -10,6 +10,7 @@ static Texture2D faces[FACES_COUNT];
 static SmileType cur_face = Default;
 
 
+static int game_over = 0;
 
 
 void startMinesweeper() {
@@ -33,9 +34,10 @@ static void newGame(int width, int height, int mines) {
   } 
 
  
-  field.field[0] = Empty;
-  countMines(&field, 0, 0);
   while (!WindowShouldClose()) {
+    if (!game_over)
+      update(&field);    
+
     BeginDrawing();
     drawField(&field);
     EndDrawing();
@@ -54,16 +56,14 @@ static void drawField(const Field *FIELD) {
     for (int j = 0; j < FIELD->width; j++, index++, pos.x += CELL_SIZE) {
       switch (FIELD->field[index]) {
         case Empty:
+        case Mine:
           texture = &cell_up;
           break;
         case Checked:
           texture = &cell_down;
           break;
-        case Mine:
-          texture = &mine_cell;
-          break;
         case Flag:
-        case MFlag:
+        case Mine | Flag:
           texture = &flag_cell;
           break;
         case Blast:
@@ -88,7 +88,7 @@ static void drawField(const Field *FIELD) {
 }
 
 
-static void countMines(Field *field, int x, int y) {
+static void countMines(const Field *FIELD, int x, int y) {
   int mines = 0, neibers_count = 0;
   int neibersx[MAX_NEIBERS];
   int neibersy[MAX_NEIBERS];
@@ -96,35 +96,78 @@ static void countMines(Field *field, int x, int y) {
 
   for (int i = -1; i < 2; i++) {
     int new_y = y + i;
-    if (new_y < 0 || new_y >= field->height)
+    if (new_y < 0 || new_y >= FIELD->height)
       continue;
 
     for (int j = -1; j < 2; j++) {
       int new_x = x + j;
-      if (new_x < 0 || new_x >= field->width)
+      if (new_x < 0 || new_x >= FIELD->width)
         continue;
 
-      int index = (new_y * field->width) + new_x;
-      if (field->field[index] == Mine || field->field[index] == MFlag) {
+      int index = (new_y * FIELD->width) + new_x;
+      if (FIELD->field[index] & Mine) {
         mines++;
       }
-      else if (mines == 0 && field->field[index] == Empty) {
+      else if (mines == 0 && FIELD->field[index] == Empty) {
         neibersx[neibers_count] = new_x;
         neibersy[neibers_count++] = new_y;
       }
     }
   }
 
-  int cur = (y * field->width) + x;
+  int cur = (y * FIELD->width) + x;
   if (mines > 0) {
-    field->field[cur] = mines;
+    FIELD->field[cur] = mines;
     return;
   }
 
-  field->field[cur] = Checked;
+  FIELD->field[cur] = Checked;
   for (int i = 0; i < neibers_count; i++)
-    countMines(field, neibersx[i], neibersy[i]);
+    countMines(FIELD, neibersx[i], neibersy[i]);
 }
+
+
+static void update(Field *field) {
+  int x, y;
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && getCell(field, &x, &y)) {
+    int index = (y * field->width) + x;
+    if (field->field[index] == Mine) {
+      game_over = 1;
+      PlaySound(lose_sound);
+      return;
+    }
+
+    if (field->field[index] == Empty)
+      countMines(field, x, y);
+  }
+  else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && getCell(field, &x, &y)) {
+    setFlag(field, x, y);
+  }
+}
+
+
+static void setFlag(Field *field, int x, int y) {
+  int cur = (y * field->width) + x;
+  if (field->field[cur] & Flag) {
+    field->field[cur] ^= Flag;
+  }
+  else if (field->field[cur] == Empty || field->field[cur] == Mine) {
+    field->field[cur] |= Flag;
+  }
+}
+
+
+static int getCell(const Field *FIELD, int *x, int *y) {
+  const Vector2 MOUSE_POS = GetMousePosition();
+  if (!(MOUSE_POS.x >= 0 && MOUSE_POS.x < CELL_SIZE * FIELD->width) ||
+      !(MOUSE_POS.y >= 0 && MOUSE_POS.y < CELL_SIZE * FIELD->height))
+      return 0;
+
+  *x = MOUSE_POS.x / CELL_SIZE;
+  *y = MOUSE_POS.y / CELL_SIZE;
+  return 1;
+}
+
 
 
 static void loadResources() {
