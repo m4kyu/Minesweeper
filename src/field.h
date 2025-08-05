@@ -13,7 +13,7 @@ typedef enum {
   Flag = 32,
   Blast,
   False,
-  Show = 256,
+  SMine,
 } CellType;
 
 

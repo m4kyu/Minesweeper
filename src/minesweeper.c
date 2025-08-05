@@ -1,5 +1,6 @@
 #include "minesweeper.h"
 #include "field.h"
+#include <raylib.h>
 
 
 static Sound lose_sound, win_sound, tick_sound;
@@ -19,7 +20,7 @@ void startMinesweeper() {
 
   InitAudioDevice();
   loadResources();
-  newGame(24, 24, 50);
+  newGame(24, 24, 100);
 
   CloseAudioDevice();
   CloseWindow();
@@ -71,6 +72,9 @@ static void drawField(const Field *FIELD) {
           break;
         case False:
           texture = &false_mine;
+          break;
+        case SMine:
+          texture = &mine_cell;
           break;
         default:
           if (FIELD->field[index] >= 1 && FIELD->field[index] <= MAX_NEIBERS) {
@@ -127,12 +131,29 @@ static void countMines(const Field *FIELD, int x, int y) {
 }
 
 
+static void show(Field *field) {
+  for (int i = 0; i < field->size; i++) {
+    switch (field->field[i]) {
+      case Mine:
+        field->field[i] = SMine;
+        break;
+      case Flag:
+        field->field[i] = False;
+        break;
+    }
+  }
+}
+
 static void update(Field *field) {
   int x, y;
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && getCell(field, &x, &y)) {
     int index = (y * field->width) + x;
+    PlaySound(tick_sound);
     if (field->field[index] == Mine) {
       game_over = 1;
+      
+      field->field[index] = Blast;
+      show(field);
       PlaySound(lose_sound);
       return;
     }
@@ -141,6 +162,7 @@ static void update(Field *field) {
       countMines(field, x, y);
   }
   else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && getCell(field, &x, &y)) {
+    PlaySound(tick_sound);
     setFlag(field, x, y);
   }
 }
@@ -149,7 +171,7 @@ static void update(Field *field) {
 static void setFlag(Field *field, int x, int y) {
   int cur = (y * field->width) + x;
   if (field->field[cur] & Flag) {
-    field->field[cur] ^= Flag;
+    field->field[cur] ^= Flag; 
   }
   else if (field->field[cur] == Empty || field->field[cur] == Mine) {
     field->field[cur] |= Flag;
@@ -172,15 +194,15 @@ static int getCell(const Field *FIELD, int *x, int *y) {
 
 static void loadResources() {
     lose_sound = loadSound("./assets/sounds/lose.wav");
-    win_sound = loadSound("./assets/sounds/win.wav");
+    win_sound  = loadSound("./assets/sounds/win.wav");
     tick_sound = loadSound("./assets/sounds/tick.wav");
 
 
 
-    cell_up   =  loadTexture("./assets/textures/cells/cellup.png", CELL_SIZE, CELL_SIZE);
-    cell_down =  loadTexture("./assets/textures/cells/celldown.png", CELL_SIZE, CELL_SIZE);
-    flag_cell =  loadTexture("./assets/textures/cells/cellflag.png", CELL_SIZE, CELL_SIZE);
-    mine_cell =  loadTexture("./assets/textures/cells/cellmine.png", CELL_SIZE, CELL_SIZE);
+    cell_up    = loadTexture("./assets/textures/cells/cellup.png", CELL_SIZE, CELL_SIZE);
+    cell_down  = loadTexture("./assets/textures/cells/celldown.png", CELL_SIZE, CELL_SIZE);
+    flag_cell  = loadTexture("./assets/textures/cells/cellflag.png", CELL_SIZE, CELL_SIZE);
+    mine_cell  = loadTexture("./assets/textures/cells/cellmine.png", CELL_SIZE, CELL_SIZE);
     blast_cell = loadTexture("./assets/textures/cells/blast.png", CELL_SIZE, CELL_SIZE);
     false_mine = loadTexture("./assets/textures/cells/falsemine.png", CELL_SIZE, CELL_SIZE);
 

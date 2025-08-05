@@ -30,7 +30,7 @@ static void drawField(const Field *FIELD);
 
 static void countMines(const Field *FIELD, int x, int y);
 
-
+static void show(Field *field);
 static void update(Field *field);
 static void setFlag(Field *field, int x, int y);
 static int getCell(const Field *FIELD, int *x, int *y);
