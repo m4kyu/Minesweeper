@@ -1,26 +1,31 @@
 #include "minesweeper.h"
 #include "field.h"
 #include <raylib.h>
+#include <stdio.h>
+#include <unistd.h>
 
 
 static Sound lose_sound, win_sound, tick_sound;
 static Texture2D cell_up, cell_down, flag_cell,  mine_cell, blast_cell, false_mine; 
+static Texture2D bottom_l, bottom_r, mid, mid_l, mid_r, top_l, top_r, top_b;
 static Texture2D cells_neibers[MAX_NEIBERS];
 
+static Texture2D nums[10];
 static Texture2D faces[FACES_COUNT];
-static SmileType cur_face = Default;
+static FaceType cur_face = Default;
+static float change_timer = 0.0f; 
 
 
 static int game_over = 0;
 
 
 void startMinesweeper() {
-  InitWindow(CELL_SIZE * 24, CELL_SIZE * 24, "Minesweeper");    
+  InitWindow((CELL_SIZE * 24) + (CELL_SIZE * 2), (CELL_SIZE * 24) + (CELL_SIZE * 2) + (CELL_SIZE * 4), "Minesweeper");    
   SetTargetFPS(30);
 
   InitAudioDevice();
   loadResources();
-  newGame(24, 24, 100);
+  newGame(24, 24, 60);
 
   CloseAudioDevice();
   CloseWindow();
@@ -36,24 +41,80 @@ static void newGame(int width, int height, int mines) {
 
  
   while (!WindowShouldClose()) {
-    if (!game_over)
-      update(&field);    
+    if (!game_over) {
+      update(&field);
+      updateFace();
+    }
 
     BeginDrawing();
+    ClearBackground(GRAY);
+    drawBorders(&field);
     drawField(&field);
+    drawHeader(&field);
     EndDrawing();
   }
 
   fdClear(&field);
 }
 
+static void drawHeader(const Field *FIELD) {
+  Vector2 pos = {
+    .x = (FIELD->width >> 1) * CELL_SIZE,
+    .y = CELL_SIZE + (CELL_SIZE >> 1)
+  };
+
+  DrawTextureV(faces[cur_face], pos, WHITE);
+
+  pos.x = CELL_SIZE + (CELL_SIZE >> 1);
+  for (int i = 0; i < 3; i++, pos.x += CELL_SIZE)
+    DrawTextureV(nums[0], pos, WHITE);
+
+  pos.x = (FIELD->width * CELL_SIZE) - (CELL_SIZE >> 1);
+  for (int i = 0; i < 3; i++, pos.x -= CELL_SIZE)
+    DrawTextureV(nums[0], pos, WHITE);
+}
+
+static void drawBorders(const Field *FIELD) {
+  Vector2 pos = {0};
+
+
+  drawHorBorder(&top_l, &top_b, &top_r, FIELD, &pos);
+  drawVerBorder(&mid, 3, &pos);
+
+  drawHorBorder(&mid_l, &top_b, &mid_r, FIELD, &pos);
+  drawVerBorder(&mid, FIELD->height, &pos);
+  drawHorBorder(&bottom_l, &top_b, &bottom_r, FIELD, &pos);
+}
+
+
+static void drawHorBorder(const Texture2D *left, const Texture2D *mid, const Texture2D *right, const Field *field, Vector2 *pos) {
+  DrawTextureV(*left, *pos, WHITE);
+  pos->x += CELL_SIZE;
+  for (int i = 0; i < field->width; i++, pos->x += CELL_SIZE) 
+    DrawTextureV(*mid, *pos, WHITE);
+  DrawTextureV(*right, *pos, WHITE);
+
+  pos->y += CELL_SIZE;
+}
+
+static void drawVerBorder(const Texture2D *mid, int height, Vector2 *pos) {
+  float tmp = pos->x;
+
+  for (int i = 0; i < height; i++, pos->y += CELL_SIZE) {
+    pos->x = 0;
+    DrawTextureV(*mid, *pos, WHITE);
+    pos->x = tmp;
+    DrawTextureV(*mid, *pos, WHITE);
+  }
+  pos->x = 0;
+}
 
 static void drawField(const Field *FIELD) {
   Texture *texture;
-  Vector2 pos = {0};
+  Vector2 pos = {CELL_SIZE, CELL_SIZE * HEADER_SIZE};
 
   int index = 0;
-  for (int i = 0; i < FIELD->height; i++, pos.x = 0, pos.y += CELL_SIZE) {
+  for (int i = 0; i < FIELD->height; i++, pos.x = CELL_SIZE, pos.y += CELL_SIZE) {
     for (int j = 0; j < FIELD->width; j++, index++, pos.x += CELL_SIZE) {
       switch (FIELD->field[index]) {
         case Empty:
@@ -98,6 +159,8 @@ static void countMines(const Field *FIELD, int x, int y) {
   int neibersy[MAX_NEIBERS];
 
 
+  int cur = (y * FIELD->width) + x;
+  FIELD->field[cur] = Checked;
   for (int i = -1; i < 2; i++) {
     int new_y = y + i;
     if (new_y < 0 || new_y >= FIELD->height)
@@ -119,14 +182,12 @@ static void countMines(const Field *FIELD, int x, int y) {
     }
   }
 
-  int cur = (y * FIELD->width) + x;
   if (mines > 0) {
     FIELD->field[cur] = mines;
     return;
   }
 
-  FIELD->field[cur] = Checked;
-  for (int i = 0; i < neibers_count; i++)
+  for (int i = 0; i < neibers_count; i++) 
     countMines(FIELD, neibersx[i], neibersy[i]);
 }
 
@@ -144,16 +205,31 @@ static void show(Field *field) {
   }
 }
 
+static void updateFace() {
+  if (cur_face == Default) 
+    return;
+
+  change_timer += GetFrameTime();
+  if (change_timer >= FACE_CHANGE_TIME) {
+    cur_face = Default;
+    change_timer = 0.0f;
+  }
+}
+
 static void update(Field *field) {
   int x, y;
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && getCell(field, &x, &y)) {
     int index = (y * field->width) + x;
+    
+    cur_face = Click;
+    change_timer = 0.0f;
     PlaySound(tick_sound);
     if (field->field[index] == Mine) {
       game_over = 1;
       
       field->field[index] = Blast;
       show(field);
+      cur_face = Lost;
       PlaySound(lose_sound);
       return;
     }
@@ -162,6 +238,8 @@ static void update(Field *field) {
       countMines(field, x, y);
   }
   else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && getCell(field, &x, &y)) {
+    cur_face = Click;
+    change_timer = 0.0f;
     PlaySound(tick_sound);
     setFlag(field, x, y);
   }
@@ -181,12 +259,12 @@ static void setFlag(Field *field, int x, int y) {
 
 static int getCell(const Field *FIELD, int *x, int *y) {
   const Vector2 MOUSE_POS = GetMousePosition();
-  if (!(MOUSE_POS.x >= 0 && MOUSE_POS.x < CELL_SIZE * FIELD->width) ||
-      !(MOUSE_POS.y >= 0 && MOUSE_POS.y < CELL_SIZE * FIELD->height))
+  if (!(MOUSE_POS.x >= CELL_SIZE && MOUSE_POS.x < CELL_SIZE * HEADER_SIZE + CELL_SIZE * FIELD->width) ||
+      !(MOUSE_POS.y >= CELL_SIZE*HEADER_SIZE && MOUSE_POS.y < CELL_SIZE * HEADER_SIZE + CELL_SIZE * FIELD->height))
       return 0;
 
-  *x = MOUSE_POS.x / CELL_SIZE;
-  *y = MOUSE_POS.y / CELL_SIZE;
+  *x = (MOUSE_POS.x - CELL_SIZE) / CELL_SIZE;
+  *y = (MOUSE_POS.y - CELL_SIZE * HEADER_SIZE) / CELL_SIZE;
   return 1;
 }
 
@@ -207,6 +285,14 @@ static void loadResources() {
     false_mine = loadTexture("./assets/textures/cells/falsemine.png", CELL_SIZE, CELL_SIZE);
 
 
+    bottom_l = loadTexture("./assets/textures/borders/bottomleft.png", CELL_SIZE, CELL_SIZE);
+    bottom_r = loadTexture("./assets/textures/borders/bottomright.png", CELL_SIZE, CELL_SIZE);
+    mid      = loadTexture("./assets/textures/borders/leftright.png", CELL_SIZE, CELL_SIZE); 
+    mid_l    = loadTexture("./assets/textures/borders/middleleft.png", CELL_SIZE, CELL_SIZE);
+    mid_r    = loadTexture("./assets/textures/borders/middleright.png", CELL_SIZE, CELL_SIZE);
+    top_l    = loadTexture("./assets/textures/borders/topleft.png", CELL_SIZE, CELL_SIZE);
+    top_r    = loadTexture("./assets/textures/borders/topright.png", CELL_SIZE, CELL_SIZE);
+    top_b    = loadTexture("./assets/textures/borders/topbottom.png", CELL_SIZE, CELL_SIZE);
 
     char cell_path[] = "assets/textures/cells/cell1.png";
     int path_len = strlen(cell_path);
@@ -226,12 +312,12 @@ static void loadResources() {
 
 
 
-    //char counters_path[] = "assets/textures/counter/counter0.png";
-    //path_len = strlen(cell_path);
-    //for (int i = 1; i <= 10; i++) {
-      //cell_path[path_len-5] = (char)i + '0'; 
-      //counter[i-1] = loadTexture(cell_path);
-    //}
+    char counters_path[] = "assets/textures/counter/counter0.png";
+    path_len = strlen(counters_path);
+    for (int i = 0; i < 10; i++) {
+      counters_path[path_len-5] = (char)i + '0';
+      nums[i] = loadTexture(counters_path, CELL_SIZE, CELL_SIZE << 1);
+    }
 }
 
 static Sound loadSound(const char *PATH) {
