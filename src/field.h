@@ -32,7 +32,7 @@ typedef struct {
 Field fdInit(int width, int height, int mines); 
 void fdClear(Field *field);
 
-static void fdGenerateMines(Field *field);
+void fdGenerateMines(Field *field);
 
 
 

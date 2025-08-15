@@ -1,7 +1,4 @@
 #include "minesweeper.h"
-#include "field.h"
-#include <raylib.h>
-#include <stdio.h>
 
 
 static Sound lose_sound, win_sound, tick_sound;
@@ -17,16 +14,18 @@ static float change_timer = 0.0f;
 
 static unsigned int cur_time;
 static int game_over = 0;
+static int mines_all;
 
 
-void startMinesweeper() {
-  InitWindow((CELL_SIZE * 24) + (CELL_SIZE * 2), (CELL_SIZE * 24) + (CELL_SIZE * 2) + (CELL_SIZE * 4), "Minesweeper");    
+void startMinesweeper(int width, int height, int mines) {
+  InitWindow((CELL_SIZE * width) + (CELL_SIZE * 2), (CELL_SIZE * height) + (CELL_SIZE * 2) + (CELL_SIZE * 4), "Minesweeper");    
   SetTargetFPS(30);
 
   InitAudioDevice();
   loadResources();
-  newGame(24, 24, 60);
-
+  mines_all = mines;
+  newGame(width, height, mines);
+  
   CloseAudioDevice();
   CloseWindow();
 }
@@ -44,10 +43,8 @@ static void newGame(int width, int height, int mines) {
   float passed;
   cur_time = 0;
   while (!WindowShouldClose()) {
-    if (!game_over) {
-      update(&field);
-      updateFace();
-     
+    update(&field);
+    if (!game_over) { 
       passed = GetTime();
       if (passed - start >= 1) {
         cur_time++;
@@ -238,34 +235,46 @@ static void updateFace() {
 }
 
 static void update(Field *field) {
-  if (!field->flags_left) {
-    game_over = 1;
-    PlaySound(win_sound);
-    cur_face = Win;
-  }
-
-
-  int x, y;
-  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && getCell(field, &x, &y)) {
-    int index = (y * field->width) + x;
-    
-    cur_face = Click;
-    change_timer = 0.0f;
-    PlaySound(tick_sound);
-    if (field->field[index] == Mine) {
+  if (!game_over) {  
+    updateFace();
+    if (!field->flags_left) {
       game_over = 1;
-      
-      field->field[index] = Blast;
-      show(field);
-      cur_face = Lost;
-      PlaySound(lose_sound);
+      PlaySound(win_sound);
+      cur_face = Win;
+
       return;
     }
-
-    if (field->field[index] == Empty)
-      countMines(field, x, y);
   }
-  else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && getCell(field, &x, &y)) {
+
+ 
+  int x, y;
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (!game_over && getCell(field, &x, &y)) {
+      int index = (y * field->width) + x;
+      
+      cur_face = Click;
+      change_timer = 0.0f;
+      PlaySound(tick_sound);
+      if (field->field[index] == Mine) {
+        game_over = 1;
+        
+        field->field[index] = Blast;
+        show(field);
+        cur_face = Lost;
+        PlaySound(lose_sound);
+        return;
+      }
+
+      if (field->field[index] == Empty)
+        countMines(field, x, y);
+    }
+    else if (facePressed(field)) {
+      cur_face = Down;
+      PlaySound(tick_sound);
+      restart(field);
+    }
+  }
+  else if (!game_over && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && getCell(field, &x, &y)) {
     cur_face = Click;
     change_timer = 0.0f;
     PlaySound(tick_sound);
@@ -273,6 +282,25 @@ static void update(Field *field) {
   }
 }
 
+
+static void restart(Field *field) {
+  memset(field->field, 0, field->size);
+  field->mines = mines_all;
+  field->flags_left = mines_all;
+  fdGenerateMines(field);
+
+  game_over = 0;
+  cur_time = 0;
+}
+
+static int facePressed(const Field *FIELD) {
+  Vector2 pos = GetMousePosition();
+  if ((pos.x >= (FIELD->width >> 1) * CELL_SIZE && pos.x <= ((FIELD->width >> 1) * CELL_SIZE) + 50) 
+      && (pos.y >= CELL_SIZE + (CELL_SIZE >> 1) && pos.y <= CELL_SIZE + (CELL_SIZE >> 1) + 50))
+      return 1;
+
+  return 0;
+}
 
 static void setFlag(Field *field, int x, int y) {
   int cur = (y * field->width) + x;
@@ -293,8 +321,8 @@ static void setFlag(Field *field, int x, int y) {
 
 static int getCell(const Field *FIELD, int *x, int *y) {
   const Vector2 MOUSE_POS = GetMousePosition();
-  if (!(MOUSE_POS.x >= CELL_SIZE && MOUSE_POS.x < CELL_SIZE * HEADER_SIZE + CELL_SIZE * FIELD->width) ||
-      !(MOUSE_POS.y >= CELL_SIZE*HEADER_SIZE && MOUSE_POS.y < CELL_SIZE * HEADER_SIZE + CELL_SIZE * FIELD->height))
+  if (!(MOUSE_POS.x >= CELL_SIZE && MOUSE_POS.x < CELL_SIZE + (CELL_SIZE * FIELD->width)) ||
+      !(MOUSE_POS.y >= CELL_SIZE*HEADER_SIZE && MOUSE_POS.y < CELL_SIZE * HEADER_SIZE + (CELL_SIZE * FIELD->height)))
       return 0;
 
   *x = (MOUSE_POS.x - CELL_SIZE) / CELL_SIZE;

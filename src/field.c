@@ -1,7 +1,4 @@
 #include "field.h"
-#include <stdio.h>
-#include <strings.h>
-#include <time.h>
 
 
 
@@ -31,7 +28,7 @@ void fdClear(Field *field) {
 }
 
 
-static void fdGenerateMines(Field *field) {
+void fdGenerateMines(Field *field) {
   if (field->field == NULL)
     return; 
 

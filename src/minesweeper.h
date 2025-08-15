@@ -26,7 +26,7 @@ typedef enum {
 
 
 
-void startMinesweeper();
+void startMinesweeper(int width, int height, int mines);
 
 static void newGame(int width, int height, int mines);
 
@@ -46,6 +46,9 @@ static void countMines(const Field *FIELD, int x, int y);
 static void show(Field *field);
 static void update(Field *field);
 static void updateFace();
+static int facePressed(const Field *field);
+static void restart(Field *field);
+
 static void setFlag(Field *field, int x, int y);
 static int getCell(const Field *FIELD, int *x, int *y);
 
