@@ -2,7 +2,6 @@
 #include "field.h"
 #include <raylib.h>
 #include <stdio.h>
-#include <unistd.h>
 
 
 static Sound lose_sound, win_sound, tick_sound;
@@ -16,6 +15,7 @@ static FaceType cur_face = Default;
 static float change_timer = 0.0f; 
 
 
+static unsigned int cur_time;
 static int game_over = 0;
 
 
@@ -39,12 +39,24 @@ static void newGame(int width, int height, int mines) {
     exit(1);
   } 
 
- 
+
+  float start = GetTime();
+  float passed;
+  cur_time = 0;
   while (!WindowShouldClose()) {
     if (!game_over) {
       update(&field);
       updateFace();
+     
+      passed = GetTime();
+      if (passed - start >= 1) {
+        cur_time++;
+        start = passed;
+      }
     }
+    
+
+   
 
     BeginDrawing();
     ClearBackground(GRAY);
@@ -65,13 +77,22 @@ static void drawHeader(const Field *FIELD) {
 
   DrawTextureV(faces[cur_face], pos, WHITE);
 
-  pos.x = CELL_SIZE + (CELL_SIZE >> 1);
-  for (int i = 0; i < 3; i++, pos.x += CELL_SIZE)
-    DrawTextureV(nums[0], pos, WHITE);
-
+  pos.x = CELL_SIZE + (CELL_SIZE >> 1) + (CELL_SIZE << 1);
+  drawNums(FIELD, pos, FIELD->flags_left);
+  
   pos.x = (FIELD->width * CELL_SIZE) - (CELL_SIZE >> 1);
-  for (int i = 0; i < 3; i++, pos.x -= CELL_SIZE)
-    DrawTextureV(nums[0], pos, WHITE);
+  drawNums(FIELD, pos, cur_time);
+}
+
+static void drawNums(const Field *FIELD, Vector2 pos, unsigned int num) {
+  if (num > 999) 
+    num %= 999;
+
+  
+  for (int i = 0; i < 3; i++, pos.x -= CELL_SIZE) {
+    DrawTextureV(nums[num%10], pos, WHITE);
+    num /= 10;
+  }
 }
 
 static void drawBorders(const Field *FIELD) {
@@ -217,6 +238,13 @@ static void updateFace() {
 }
 
 static void update(Field *field) {
+  if (!field->flags_left) {
+    game_over = 1;
+    PlaySound(win_sound);
+    cur_face = Win;
+  }
+
+
   int x, y;
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && getCell(field, &x, &y)) {
     int index = (y * field->width) + x;
@@ -249,10 +277,16 @@ static void update(Field *field) {
 static void setFlag(Field *field, int x, int y) {
   int cur = (y * field->width) + x;
   if (field->field[cur] & Flag) {
-    field->field[cur] ^= Flag; 
+    field->field[cur] ^= Flag;
+    if (field->field[cur] == Mine)  
+      field->mines++;
+    field->flags_left++;
   }
   else if (field->field[cur] == Empty || field->field[cur] == Mine) {
+    if (field->field[cur] == Mine)
+      field->mines--;
     field->field[cur] |= Flag;
+    field->flags_left--;
   }
 }
 

@@ -25,6 +25,7 @@ typedef enum {
 
 
 
+
 void startMinesweeper();
 
 static void newGame(int width, int height, int mines);
@@ -36,6 +37,9 @@ static void drawField(const Field *FIELD);
 
 static void drawHorBorder(const Texture2D *left, const Texture2D *mid, const Texture2D *right, const Field *field, Vector2 *pos);
 static void drawVerBorder(const Texture2D *mid, int height, Vector2 *pos);
+
+static void drawNums(const Field *FIELD, Vector2 pos, unsigned int num);
+
 
 static void countMines(const Field *FIELD, int x, int y);
 
